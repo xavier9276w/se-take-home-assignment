@@ -70,19 +70,24 @@ describe('OrderService', () => {
     });
   });
 
-  describe('markOrderAsProcessing', () => {
-    it('should mark order as processing', () => {
+  describe('addToProcessing', () => {
+    it('should add order to processing list', () => {
       const order = orderService.createOrder('NORMAL');
-      const updatedOrder = orderService.markOrderAsProcessing(order.id, 1);
+      const dequeuedOrder = orderService.getNextPendingOrder();
 
-      expect(updatedOrder?.status).toBe('PROCESSING');
-      expect(updatedOrder?.botId).toBe(1);
-      expect(updatedOrder?.processingStartedAt).toBeDefined();
+      expect(dequeuedOrder).toBeDefined();
+      dequeuedOrder!.status = 'PROCESSING';
+      dequeuedOrder!.botId = 1;
+      orderService.addToProcessing(dequeuedOrder!);
+
+      const processingOrders = orderService.getProcessingOrders();
+      expect(processingOrders).toHaveLength(1);
+      expect(processingOrders[0].status).toBe('PROCESSING');
     });
 
-    it('should remove order from pending queue', () => {
-      const order = orderService.createOrder('NORMAL');
-      orderService.markOrderAsProcessing(order.id, 1);
+    it('should remove order from pending queue when dequeued', () => {
+      orderService.createOrder('NORMAL');
+      orderService.getNextPendingOrder();
 
       const pendingOrders = orderService.getPendingOrders();
       expect(pendingOrders).toHaveLength(0);
@@ -92,8 +97,11 @@ describe('OrderService', () => {
   describe('markOrderAsComplete', () => {
     it('should mark order as complete', () => {
       const order = orderService.createOrder('NORMAL');
-      orderService.markOrderAsProcessing(order.id, 1);
-      const completedOrder = orderService.markOrderAsComplete(order.id);
+      const dequeuedOrder = orderService.getNextPendingOrder();
+      dequeuedOrder!.status = 'PROCESSING';
+      orderService.addToProcessing(dequeuedOrder!);
+
+      const completedOrder = orderService.markOrderAsComplete(dequeuedOrder!.id);
 
       expect(completedOrder?.status).toBe('COMPLETE');
       expect(completedOrder?.completedAt).toBeDefined();
@@ -101,10 +109,13 @@ describe('OrderService', () => {
   });
 
   describe('returnOrderToPending', () => {
-    it('should return processing order back to pending', () => {
+    it('should return processing order back to pending at front of queue', () => {
       const order = orderService.createOrder('NORMAL');
-      orderService.markOrderAsProcessing(order.id, 1);
-      const returnedOrder = orderService.returnOrderToPending(order.id);
+      const dequeuedOrder = orderService.getNextPendingOrder();
+      dequeuedOrder!.status = 'PROCESSING';
+      orderService.addToProcessing(dequeuedOrder!);
+
+      const returnedOrder = orderService.returnOrderToPending(dequeuedOrder!.id);
 
       expect(returnedOrder?.status).toBe('PENDING');
       expect(returnedOrder?.botId).toBeUndefined();
@@ -112,6 +123,24 @@ describe('OrderService', () => {
 
       const pendingOrders = orderService.getPendingOrders();
       expect(pendingOrders).toHaveLength(1);
+      expect(pendingOrders[0].id).toBe(order.id);
+    });
+
+    it('should add returned order to front of queue', () => {
+      const order1 = orderService.createOrder('NORMAL');
+      const order2 = orderService.createOrder('NORMAL');
+
+      // Dequeue and process order1
+      const dequeuedOrder = orderService.getNextPendingOrder();
+      dequeuedOrder!.status = 'PROCESSING';
+      orderService.addToProcessing(dequeuedOrder!);
+
+      // Return order1 to pending (should go to front)
+      orderService.returnOrderToPending(order1.id);
+
+      // Next order should be order1 (not order2)
+      const nextOrder = orderService.getNextPendingOrder();
+      expect(nextOrder?.id).toBe(order1.id);
     });
   });
 });

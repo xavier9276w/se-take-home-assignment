@@ -1,8 +1,9 @@
 import { Order, OrderType, OrderStatus } from '../models/order.model';
+import { LinkedQueue } from '../utils/linked-queue';
 
 export class OrderService {
-  private vipQueue: Order[] = [];
-  private normalQueue: Order[] = [];
+  private vipQueue: LinkedQueue<Order> = new LinkedQueue();
+  private normalQueue: LinkedQueue<Order> = new LinkedQueue();
   private processingOrders: Order[] = [];
   private completedOrders: Order[] = [];
   private orderCounter: number = 1000;
@@ -16,37 +17,30 @@ export class OrderService {
     };
 
     if (type === 'VIP') {
-      this.vipQueue.push(order);
+      this.vipQueue.enqueue(order);
     } else {
-      this.normalQueue.push(order);
+      this.normalQueue.enqueue(order);
     }
 
     return order;
   }
 
   getNextPendingOrder(): Order | undefined {
-    // VIP orders always have priority
-    const order = this.vipQueue.shift() || this.normalQueue.shift();
+    // VIP orders always have priority - O(1) operation!
+    const order = this.vipQueue.dequeue() || this.normalQueue.dequeue();
     return order;
   }
 
   markOrderAsProcessing(orderId: number, botId: number): Order | undefined {
-    // Find order in either queue
-    let order = this.vipQueue.find(o => o.id === orderId);
-    if (order) {
-      this.vipQueue = this.vipQueue.filter(o => o.id !== orderId);
-    } else {
-      order = this.normalQueue.find(o => o.id === orderId);
-      if (order) {
-        this.normalQueue = this.normalQueue.filter(o => o.id !== orderId);
-      }
-    }
+    // Note: This method is actually not needed anymore since getNextPendingOrder()
+    // already removes the order from the queue. We'll keep it for compatibility
+    // but it won't be used in the normal flow.
+    const order = this.processingOrders.find(o => o.id === orderId);
 
     if (order) {
       order.status = 'PROCESSING';
       order.processingStartedAt = new Date();
       order.botId = botId;
-      this.processingOrders.push(order);
     }
 
     return order;
@@ -71,18 +65,19 @@ export class OrderService {
       order.processingStartedAt = undefined;
       order.botId = undefined;
 
-      // Put back in appropriate queue
+      // Put back to the FRONT of the appropriate queue - O(1) operation!
+      // This ensures the interrupted order gets picked up as soon as possible
       if (order.type === 'VIP') {
-        this.vipQueue.push(order);
+        this.vipQueue.enqueueFront(order);
       } else {
-        this.normalQueue.push(order);
+        this.normalQueue.enqueueFront(order);
       }
     }
     return order;
   }
 
   getPendingOrders(): Order[] {
-    return [...this.vipQueue, ...this.normalQueue];
+    return [...this.vipQueue.toArray(), ...this.normalQueue.toArray()];
   }
 
   getProcessingOrders(): Order[] {
@@ -103,5 +98,10 @@ export class OrderService {
 
   getPendingOrderCount(): number {
     return this.vipQueue.length + this.normalQueue.length;
+  }
+
+  // Internal method to add order to processing list
+  addToProcessing(order: Order): void {
+    this.processingOrders.push(order);
   }
 }

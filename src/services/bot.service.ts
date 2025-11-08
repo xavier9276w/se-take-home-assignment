@@ -71,7 +71,7 @@ export class BotService {
       return;
     }
 
-    // Get next pending order
+    // Get next pending order (automatically removes from queue)
     const order = this.orderService.getNextPendingOrder();
 
     if (!order) {
@@ -88,7 +88,13 @@ export class BotService {
     // Mark order as processing
     bot.status = 'PROCESSING';
     bot.currentOrderId = order.id;
-    this.orderService.markOrderAsProcessing(order.id, bot.id);
+    order.status = 'PROCESSING';
+    order.processingStartedAt = new Date();
+    order.botId = bot.id;
+
+    // Add to processing orders array (since it was removed from pending queue)
+    this.orderService.addToProcessing(order);
+
     this.emitEvent('order:processing', { order, bot });
 
     // Process order for 10 seconds

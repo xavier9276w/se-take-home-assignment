@@ -2,6 +2,7 @@ import express, { Application } from 'express';
 import { OrderService } from './services/order.service';
 import { BotService } from './services/bot.service';
 import { OrderController } from './controllers/order.controller';
+import { BotController } from './controllers/bot.controller';
 
 export function createServer(): Application {
   const app = express();
@@ -13,18 +14,50 @@ export function createServer(): Application {
   // Initialize services
   const orderService = new OrderService();
   const botService = new BotService(orderService);
-  const controller = new OrderController(orderService, botService);
 
-  // Routes
-  app.post('/orders/normal', controller.createNormalOrder);
-  app.post('/orders/vip', controller.createVipOrder);
-  app.get('/orders', controller.getAllOrders);
+  // Initialize controllers
+  const orderController = new OrderController(orderService);
+  const botController = new BotController(botService);
 
-  app.post('/bots', controller.addBot);
-  app.delete('/bots', controller.removeBot);
-  app.get('/bots', controller.getAllBots);
+  // Order routes
+  app.post('/orders/normal', orderController.createNormalOrder);
+  app.post('/orders/vip', orderController.createVipOrder);
+  app.get('/orders', orderController.getAllOrders);
 
-  app.get('/status', controller.getStatus);
+  // Bot routes
+  app.post('/bots', botController.addBot);
+  app.delete('/bots', botController.removeBot);
+  app.get('/bots', botController.getAllBots);
+
+  // Status route
+  app.get('/status', (req, res) => {
+    try {
+      const orders = orderService.getAllOrders();
+      const bots = botService.getBots();
+
+      res.status(200).json({
+        success: true,
+        data: {
+          orders: {
+            pending: orders.pending.length,
+            processing: orders.processing.length,
+            completed: orders.completed.length,
+          },
+          bots: {
+            total: bots.length,
+            active: botService.getActiveBotCount(),
+            idle: botService.getIdleBotCount(),
+          },
+        },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve status',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
 
   // Health check
   app.get('/health', (req, res) => {

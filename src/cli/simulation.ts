@@ -40,7 +40,7 @@ export async function runSimulation(): Promise<void> {
   logger.log('');
   logger.log(`System initialized with ${botService.getBotCount()} bots`);
 
-  // Scenario: Create orders and bots to demonstrate all requirements
+  // Scenario: Demonstrate all requirements including bot removal during processing
 
   // 1. Create normal order
   await sleep(1000);
@@ -57,7 +57,7 @@ export async function runSimulation(): Promise<void> {
   const order3 = orderService.createOrder('NORMAL');
   logger.log(`Created Normal Order #${order3.id} - Status: PENDING`);
 
-  // 4. Add first bot (should process VIP order first)
+  // 4. Add first bot (should process VIP order first - demonstrates VIP priority)
   await sleep(1000);
   botService.addBot();
 
@@ -65,25 +65,29 @@ export async function runSimulation(): Promise<void> {
   await sleep(1000);
   botService.addBot();
 
-  // Wait for first two orders to complete (10s + buffer)
-  await sleep(10500);
+  // 6. IMPORTANT: Remove bot #2 while it's PROCESSING order #1
+  //    This demonstrates requirement: "When bot is removed while processing, order returns to PENDING"
+  await sleep(2000); // Wait 2 seconds (bot is still processing)
+  logger.log(`Removing Bot #2 while it is PROCESSING Order #${order1.id}...`);
+  botService.removeBot();
 
-  // 6. Bot should automatically pick up the third order
-  // Wait a bit to see it pick up
-  await sleep(500);
+  // 7. Wait a moment to see order returned to pending and picked up by another bot
+  await sleep(1000);
 
-  // 7. Create a new VIP order while bot is processing
+  // 8. Create a new VIP order to test priority again
   const order4 = orderService.createOrder('VIP');
   logger.log(`Created VIP Order #${order4.id} - Status: PENDING`);
 
-  // 8. Idle bot should pick it up immediately
-  await sleep(500);
+  // 9. Add a third bot to help process remaining orders
+  await sleep(1000);
+  botService.addBot();
 
   // Wait for all orders to complete
-  await sleep(10000);
+  await sleep(12000);
 
-  // 9. Remove one bot while idle
+  // 10. Remove bot while IDLE to show the difference
   await sleep(1000);
+  logger.log(`Removing a bot while IDLE...`);
   botService.removeBot();
 
   await sleep(500);
