@@ -5,11 +5,10 @@
 
 echo "Building CLI application..."
 
-# For Go projects:
-# go build -o order-controller ./cmd/main.go
+# Install dependencies
+npm install
 
-# For Node.js projects:
-# npm install
-# npm run build (if needed)
+# Compile TypeScript to JavaScript
+npm run build
 
 echo "Build completed"
