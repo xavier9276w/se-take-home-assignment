@@ -7,6 +7,10 @@ set -e  # Exit on error
 
 echo "Running unit tests..."
 
+# Install dependencies first
+echo "Installing dependencies..."
+npm install
+
 # Run Jest tests
 npm test
 
